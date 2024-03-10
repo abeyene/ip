@@ -118,8 +118,8 @@ module axi4lite_bridge
   axi4_w_pkt_t axi4_w_pkt; 
   axi4_r_pkt_t axi4_r_pkt;
 
-  wire s_axi4_aw_fifo_data_in_valid, s_axi4_aw_fifo_data_in_ready; 
-  wire [$bits(axi4_aw_pkt)-1:0] s_axi4_aw_fifo_data_in;
+  logic s_axi4_aw_fifo_data_in_valid, s_axi4_aw_fifo_data_in_ready; 
+  logic [$bits(axi4_aw_pkt)-1:0] s_axi4_aw_fifo_data_in;
 
   wire s_axi4_w_done_r;
   /************************* BEGIN: Slave AXI4 AW Logic ***********************/
@@ -283,10 +283,9 @@ module axi4lite_bridge
 
   /************************* END: Slave AXI4 AW Logic ***********************/
 
-
   assign s_axi4_aw_fifo_data_in = {axi4_aw_pkt.region, axi4_aw_pkt.qos, axi4_aw_pkt.prot, axi4_aw_pkt.lock, axi4_aw_pkt.cache, axi4_aw_pkt.len, axi4_aw_pkt.size,  axi4_aw_pkt.burst, axi4_aw_pkt.addr, axi4_aw_pkt.id};
 
-  fifo s_axi4_aw_fifo (
+  fifo #(.width($bits(axi4_aw_pkt)))  s_axi4_aw_fifo (
           .clk(clk),
           .rstn(rstn),
           .data_in_ready(s_axi4_aw_fifo_data_in_ready),
