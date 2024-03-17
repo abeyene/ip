@@ -6,7 +6,10 @@
 //
 // Convert AXI4 protocol to AXI4 Lite
 
-module axi4lite_bridge
+`define SLVERR 0'b10
+`define DECERR 0'b11
+
+module axi4_bridge
   #( parameter axi4_id_size = 5,
      axi4_addr_size = 32,
      axi4_data_size = 64)
@@ -29,7 +32,6 @@ module axi4lite_bridge
   // Master AXI4 Write Data Interface
   output logic                          s_axi4_w_ready,
   input                                 s_axi4_w_valid,
-  input [axi4_id_size-1:0]              s_axi4_w_id,
   input [axi4_data_size-1:0]            s_axi4_w_data,
   input [(axi4_data_size >> 3):0]       s_axi4_w_strb,
   input                                 s_axi4_w_last,
@@ -57,6 +59,7 @@ module axi4lite_bridge
   output logic [axi4_id_size-1:0]       s_axi4_r_id,
   output logic [axi4_data_size-1:0]     s_axi4_r_data,
   output                                s_axi4_r_last,
+  output logic [1:0]                    s_axi4_r_resp,
   // Master AXI4 Lite Write Address Interface
   input                                 m_axi4lite_aw_ready,
   output logic                          m_axi4lite_aw_valid,
@@ -105,23 +108,117 @@ module axi4lite_bridge
   typedef struct packed {
     logic    [1:0] resp;
     logic [axi4_id_size-1:0] id;
+    logic    [1:0] burst;
   } axi4_b_pkt_t; // 8 bits
 
   typedef struct packed {
     logic      [1:0] resp;
     logic [axi4_data_size-1:0] data;
-    logic            last;
-    logic [axi4_id_size-1:0] id;
+    //logic            last;
+    //logic [axi4_id_size-1:0] id;
   } axi4_r_pkt_t; // 73 bits
 
   axi4_a_pkt_t axi4_aw_pkt, axi4_ar_pkt;
   axi4_w_pkt_t axi4_w_pkt; 
+  axi4_b_pkt_t axi4_b_pkt; 
   axi4_r_pkt_t axi4_r_pkt;
 
   logic s_axi4_aw_fifo_data_in_valid, s_axi4_aw_fifo_data_in_ready; 
   logic [$bits(axi4_aw_pkt)-1:0] s_axi4_aw_fifo_data_in;
+  logic s_axi4_aw_fifo_data_out_valid, s_axi4_aw_fifo_data_out_ready; 
+  logic [$bits(axi4_aw_pkt)-1:0] s_axi4_aw_fifo_data_out;
 
-  wire s_axi4_w_done_r;
+  logic s_axi4_w_fifo_data_in_valid, s_axi4_w_fifo_data_in_ready; 
+  logic [$bits(axi4_w_pkt)-1:0] s_axi4_w_fifo_data_in;
+  logic s_axi4_w_fifo_data_out_valid, s_axi4_w_fifo_data_out_ready; 
+  logic [$bits(axi4_w_pkt)-1:0] s_axi4_w_fifo_data_out;
+
+  logic m_axi4lite_b_fifo_data_in_valid, m_axi4lite_b_fifo_data_in_ready; 
+  logic [$bits(axi4_b_pkt)-1:0] m_axi4lite_b_fifo_data_in;
+  logic m_axi4lite_b_fifo_data_out_valid, m_axi4lite_b_fifo_data_out_ready; 
+  logic [$bits(axi4_b_pkt)-1:0] m_axi4lite_b_fifo_data_out;
+
+  logic s_axi4_aw_id_burst_fifo_data_in_valid, s_axi4_aw_id_burst_fifo_data_in_ready; 
+  logic [$bits(2 + axi4_id_size)-1:0] s_axi4_aw_id_burst_fifo_data_in;
+  logic s_axi4_aw_id_burst_fifo_data_out_valid, s_axi4_aw_id_burst_fifo_data_out_ready; 
+  logic [$bits(2 + axi4_id_size)-1:0] s_axi4_aw_id_burst_fifo_data_out;
+
+  logic s_axi4_ar_fifo_data_in_valid, s_axi4_ar_fifo_data_in_ready; 
+  logic [$bits(axi4_ar_pkt)-1:0] s_axi4_ar_fifo_data_in;
+  logic s_axi4_ar_fifo_data_out_valid, s_axi4_ar_fifo_data_out_ready; 
+  logic [$bits(axi4_ar_pkt)-1:0] s_axi4_ar_fifo_data_out;
+
+  logic m_axi4lite_r_fifo_data_in_valid, m_axi4lite_r_fifo_data_in_ready; 
+  logic [$bits(axi4_r_pkt)-1:0] m_axi4lite_r_fifo_data_in;
+  logic m_axi4lite_r_fifo_data_out_valid, m_axi4lite_r_fifo_data_out_ready; 
+  logic [$bits(axi4_r_pkt)-1:0] m_axi4lite_r_fifo_data_out;
+
+  fifo #(.width($bits(axi4_aw_pkt)))  s_axi4_aw_fifo (
+          .clk(clk),
+          .rstn(rstn),
+          .data_in_ready(s_axi4_aw_fifo_data_in_ready),
+          .data_in_valid(s_axi4_aw_fifo_data_in_valid),
+          .data_in(s_axi4_aw_fifo_data_in),
+          .data_out_ready(s_axi4_aw_fifo_data_out_ready),
+          .data_out_valid(s_axi4_aw_fifo_data_out_valid),
+          .data_out(s_axi4_aw_fifo_data_out)
+          );
+
+  fifo #(.width($bits(axi4_w_pkt)))  s_axi4_w_fifo (
+          .clk(clk),
+          .rstn(rstn),
+          .data_in_ready(s_axi4_w_fifo_data_in_ready),
+          .data_in_valid(s_axi4_w_fifo_data_in_valid),
+          .data_in(s_axi4_w_fifo_data_in),
+          .data_out_ready(s_axi4_w_fifo_data_out_ready),
+          .data_out_valid(s_axi4_w_fifo_data_out_valid),
+          .data_out(s_axi4_w_fifo_data_out)
+          );
+
+  fifo #(.width($bits(axi4_b_pkt)))  m_axi4lite_b_fifo (
+          .clk(clk),
+          .rstn(rstn),
+          .data_in_ready(m_axi4lite_b_fifo_data_in_ready),
+          .data_in_valid(m_axi4lite_b_fifo_data_in_valid),
+          .data_in(m_axi4lite_b_fifo_data_in),
+          .data_out_ready(m_axi4lite_b_fifo_data_out_ready),
+          .data_out_valid(m_axi4lite_b_fifo_data_out_valid),
+          .data_out(m_axi4lite_b_fifo_data_out)
+          );
+
+  fifo #(.width($bits(2 + axi4_id_size)))  s_axi4_aw_id_burst_fifo (
+          .clk(clk),
+          .rstn(rstn),
+          .data_in_ready(s_axi4_aw_id_burst_fifo_data_in_ready),
+          .data_in_valid(s_axi4_aw_id_burst_fifo_data_in_valid),
+          .data_in(s_axi4_aw_id_burst_fifo_data_in),
+          .data_out_ready(s_axi4_aw_id_burst_fifo_data_out_ready),
+          .data_out_valid(s_axi4_aw_id_burst_fifo_data_out_valid),
+          .data_out(s_axi4_aw_id_burst_fifo_data_out)
+          );
+
+  fifo #(.width($bits(axi4_ar_pkt)))  s_axi4_ar_fifo (
+          .clk(clk),
+          .rstn(rstn),
+          .data_in_ready(s_axi4_ar_fifo_data_in_ready),
+          .data_in_valid(s_axi4_ar_fifo_data_in_valid),
+          .data_in(s_axi4_ar_fifo_data_in),
+          .data_out_ready(s_axi4_ar_fifo_data_out_ready),
+          .data_out_valid(s_axi4_ar_fifo_data_out_valid),
+          .data_out(s_axi4_ar_fifo_data_out)
+          );
+
+  fifo #(.width($bits(axi4_r_pkt)))  m_axi4lite_r_fifo (
+          .clk(clk),
+          .rstn(rstn),
+          .data_in_ready(m_axi4lite_r_fifo_data_in_ready),
+          .data_in_valid(m_axi4lite_r_fifo_data_in_valid),
+          .data_in(m_axi4lite_r_fifo_data_in),
+          .data_out_ready(m_axi4lite_r_fifo_data_out_ready),
+          .data_out_valid(m_axi4lite_r_fifo_data_out_valid),
+          .data_out(m_axi4lite_r_fifo_data_out)
+          );
+
   /************************* BEGIN: Slave AXI4 AW Logic ***********************/
 
   typedef enum logic [3:0] {S_AXI4_AW_STATE_IDLE, S_AXI4_AW_STATE_CHECK, S_AXI4_AW_STATE_CONVERT, S_AXI4_AW_STATE_STORE, S_AXI4_AW_STATE_WAIT} s_axi4_aw_state_t;
@@ -133,18 +230,6 @@ module axi4lite_bridge
   reg [7:0] s_axi4_aw_burst_count_r;
   reg [axi4_addr_size-1:0] s_axi4_aw_addr_offset_r;
 
-/*
-  always @(posedge clk)
-  begin
-    if (s_axi4_aw_ready & s_axi4_aw_valid)
-    begin
-      lower_byte_lane <= s_axi4_aw_addr - (s_axi4_aw_addr >> (axi4_data_size >> 3));
-      upper_byte_lane <= s_axi4_aw_addr >> s_axi4_aw_size + 2**s_axi4_aw_size - (s_axi4_aw_addr >> (axi4_data_size >> 3));
-      default : 
-    end
-  end 
-*/
-
   always_comb
   begin
     case (s_axi4_aw_state)
@@ -152,6 +237,7 @@ module axi4lite_bridge
         begin
           s_axi4_aw_ready = 1'b1;
           s_axi4_aw_fifo_data_in_valid = 1'b0;
+          s_axi4_aw_id_burst_fifo_data_in_valid = 1'b0;
           if (s_axi4_aw_valid)
           begin
             s_axi4_aw_state_n = S_AXI4_AW_STATE_CHECK;
@@ -161,6 +247,7 @@ module axi4lite_bridge
         begin
           s_axi4_aw_ready = 1'b0;
           s_axi4_aw_fifo_data_in_valid = 1'b0;
+          s_axi4_aw_id_burst_fifo_data_in_valid = 1'b0;
         case (axi4_aw_pkt.len)
           2'b00 : 
             begin
@@ -184,19 +271,22 @@ module axi4lite_bridge
         begin
           s_axi4_aw_ready = 1'b0;
           s_axi4_aw_fifo_data_in_valid = 1'b0;
+          s_axi4_aw_id_burst_fifo_data_in_valid = 1'b0;
           s_axi4_aw_state_n = S_AXI4_AW_STATE_STORE;
         end
       S_AXI4_AW_STATE_STORE :
         begin
           s_axi4_aw_ready = 1'b0;
           s_axi4_aw_fifo_data_in_valid = 1'b1;
-          s_axi4_aw_state_n = s_axi4_aw_fifo_data_in_ready ? (s_axi4_aw_burst_count_r == axi4_aw_pkt.len ? S_AXI4_AW_STATE_WAIT : S_AXI4_AW_STATE_CONVERT) : S_AXI4_AW_STATE_STORE;
+          s_axi4_aw_id_burst_fifo_data_in_valid = 1'b1;
+          s_axi4_aw_state_n = s_axi4_aw_fifo_data_in_ready & s_axi4_aw_id_burst_fifo_data_in_ready ? (s_axi4_aw_burst_count_r == axi4_aw_pkt.len ? S_AXI4_AW_STATE_WAIT : S_AXI4_AW_STATE_CONVERT) : S_AXI4_AW_STATE_STORE;
         end
       S_AXI4_AW_STATE_WAIT :
         begin
           s_axi4_aw_ready = 1'b0;
-          s_axi4_aw_fifo_data_in_valid = 1'b1;
-          s_axi4_aw_state_n = s_axi4_w_done_r ? S_AXI4_AW_STATE_IDLE : S_AXI4_AW_STATE_WAIT;
+          s_axi4_aw_fifo_data_in_valid = 1'b0;
+          s_axi4_aw_id_burst_fifo_data_in_valid = 1'b0;
+          s_axi4_aw_state_n = s_axi4_b_ready & s_axi4_b_valid ? S_AXI4_AW_STATE_IDLE : S_AXI4_AW_STATE_WAIT;
         end
       default :
         begin
@@ -223,7 +313,7 @@ module axi4lite_bridge
 
   always @(posedge clk)
   begin
-    if (rstn)
+    if (~rstn)
     begin
       if (s_axi4_aw_state == S_AXI4_AW_STATE_CHECK & s_axi4_aw_state_p == S_AXI4_AW_STATE_IDLE)
       begin
@@ -246,7 +336,7 @@ module axi4lite_bridge
 
   always @(posedge clk)
   begin
-    if (rstn)
+    if (~rstn)
     begin
       if (s_axi4_aw_state == S_AXI4_AW_STATE_CHECK & s_axi4_aw_state_n == S_AXI4_AW_STATE_CONVERT)
       begin
@@ -285,16 +375,191 @@ module axi4lite_bridge
 
   assign s_axi4_aw_fifo_data_in = {axi4_aw_pkt.region, axi4_aw_pkt.qos, axi4_aw_pkt.prot, axi4_aw_pkt.lock, axi4_aw_pkt.cache, axi4_aw_pkt.len, axi4_aw_pkt.size,  axi4_aw_pkt.burst, axi4_aw_pkt.addr, axi4_aw_pkt.id};
 
-  fifo #(.width($bits(axi4_aw_pkt)))  s_axi4_aw_fifo (
-          .clk(clk),
-          .rstn(rstn),
-          .data_in_ready(s_axi4_aw_fifo_data_in_ready),
-          .data_in_valid(s_axi4_aw_fifo_data_in_valid),
-          .data_in(s_axi4_aw_fifo_data_in),
-          .data_out_ready(),
-          .data_out_valid(),
-          .data_out()
-          );
+  assign s_axi4_aw_fifo_data_out_ready = m_axi4lite_aw_ready;
+  assign m_axi4lite_aw_valid = s_axi4_aw_fifo_data_out_valid;
+  assign m_axi4lite_aw_addr = s_axi4_aw_fifo_data_out[axi4_id_size+:axi4_addr_size];
+  assign m_axi4lite_aw_prot = s_axi4_aw_fifo_data_out[axi4_id_size+axi4_addr_size+2+3+8+4+1+:3];
 
+  /************************* BEGIN: Slave AXI4 W Logic ***********************/
 
+  typedef enum logic [3:0] {S_AXI4_W_STATE_IDLE, S_AXI4_W_STATE_CHECK, S_AXI4_W_STATE_CONVERT, S_AXI4_W_STATE_STORE, S_AXI4_W_STATE_WAIT} s_axi4_w_state_t;
+  s_axi4_w_state_t s_axi4_w_state, s_axi4_w_state_n, s_axi4_w_state_p;
+
+  always_comb
+  begin
+    case (s_axi4_w_state)
+      S_AXI4_W_STATE_IDLE :
+        begin
+          s_axi4_w_ready = 1'b1;
+          s_axi4_w_fifo_data_in_valid = 1'b0;
+          if (s_axi4_w_valid)
+          begin
+            s_axi4_w_state_n = S_AXI4_W_STATE_CONVERT;
+          end
+        end
+      S_AXI4_W_STATE_CONVERT :
+        begin
+          s_axi4_w_ready = 1'b0;
+          s_axi4_w_fifo_data_in_valid = 1'b0;
+          s_axi4_w_state_n = S_AXI4_W_STATE_STORE;
+        end
+      S_AXI4_W_STATE_STORE :
+        begin
+          s_axi4_w_ready = 1'b0;
+          s_axi4_w_fifo_data_in_valid = 1'b1;
+          s_axi4_w_state_n = s_axi4_w_fifo_data_in_ready ? (axi4_w_pkt.last ? S_AXI4_W_STATE_WAIT : S_AXI4_W_STATE_IDLE) : S_AXI4_W_STATE_STORE;
+        end
+      S_AXI4_W_STATE_WAIT :
+        begin
+          s_axi4_w_ready = 1'b0;
+          s_axi4_w_fifo_data_in_valid = 1'b0;
+          s_axi4_w_state_n = s_axi4_b_ready & s_axi4_b_valid ? S_AXI4_W_STATE_IDLE : S_AXI4_W_STATE_WAIT;
+        end
+      default :
+        begin
+          s_axi4_w_ready = 1'b0;
+          s_axi4_w_fifo_data_in_valid = 1'b1;
+          s_axi4_w_state_n = S_AXI4_W_STATE_IDLE;
+        end
+      endcase
+  end
+
+  always @(posedge clk)
+  begin
+    if (~rstn)
+    begin
+      s_axi4_w_state <= S_AXI4_W_STATE_IDLE;
+      s_axi4_w_state_p <= S_AXI4_W_STATE_IDLE;
+    end
+    else
+    begin
+      s_axi4_w_state   <= s_axi4_w_state_n;
+      s_axi4_w_state_p <= s_axi4_w_state;
+    end
+  end
+
+  always @(posedge clk)
+  begin
+    if (~rstn)
+    begin
+      if (s_axi4_w_state == S_AXI4_W_STATE_CONVERT & s_axi4_w_state_p == S_AXI4_W_STATE_IDLE)
+      begin
+        axi4_w_pkt.data <= s_axi4_w_data;
+        axi4_w_pkt.strb <= s_axi4_w_strb;
+        axi4_w_pkt.last <= s_axi4_w_last;
+      end
+    end
+  end
+
+  /************************* END: Slave AXI4 W Logic ***********************/
+
+  assign s_axi4_w_fifo_data_in = {axi4_w_pkt.data, axi4_w_pkt.last, axi4_w_pkt.strb};
+
+  assign axi4_w_fifo_data_out_ready = m_axi4lite_w_ready;
+  assign m_axi4lite_w_valid = s_axi4_aw_fifo_data_out_valid;
+  assign m_axi4lite_w_data  = s_axi4_aw_fifo_data_out[(axi4_data_size>>3)+:axi4_data_size];
+  assign m_axi4lite_w_strb  = s_axi4_aw_fifo_data_out[0+:(axi4_data_size>>3)];
+
+  /************************* START: Slave AXI4 B Logic ***********************/
+
+  typedef enum logic [3:0] {S_AXI4_B_STATE_IDLE, S_AXI4_B_STATE_CHECK, S_AXI4_B_STATE_SEND, S_AXI4_B_STATE_WAIT} s_axi4_b_state_t;
+  s_axi4_b_state_t s_axi4_b_state, s_axi4_b_state_n, s_axi4_b_state_p;
+
+  reg [7:0] s_axi4_b_burst_count_r;
+
+  always_comb
+  begin
+    case (s_axi4_b_state)
+      S_AXI4_B_STATE_IDLE :
+        begin
+          s_axi4_b_valid = 0;
+          m_axi4lite_b_fifo_data_out_ready = 1'b1;
+          s_axi4_aw_id_burst_fifo_data_out_ready = 1'b1;
+          if (m_axi4lite_b_fifo_data_out_valid & s_axi4_aw_id_burst_fifo_data_out_valid)
+          begin
+            s_axi4_b_state_n = S_AXI4_B_STATE_CHECK;
+          end
+        end
+      S_AXI4_B_STATE_CHECK :
+        begin
+          s_axi4_b_valid = 0;
+          m_axi4lite_b_fifo_data_out_ready = 1'b0;
+          s_axi4_aw_id_burst_fifo_data_out_ready = 1'b0;
+          s_axi4_b_state_n = s_axi4_b_burst_count_r == axi4_b_pkt.burst ? S_AXI4_B_STATE_SEND : S_AXI4_B_STATE_WAIT;
+        end
+      S_AXI4_B_STATE_WAIT :
+        begin
+          s_axi4_b_valid = 0;
+          m_axi4lite_b_fifo_data_out_ready = 1'b1;
+          s_axi4_aw_id_burst_fifo_data_out_ready = 1'b0;
+          if (m_axi4lite_b_fifo_data_out_valid)
+          begin
+            s_axi4_b_state_n = S_AXI4_B_STATE_CHECK;
+          end
+        end
+      S_AXI4_B_STATE_SEND :
+        begin
+          s_axi4_b_valid = 1;
+          m_axi4lite_b_fifo_data_out_ready = 1'b0;
+          s_axi4_aw_id_burst_fifo_data_out_ready = 1'b0;
+          s_axi4_b_state_n = (s_axi4_b_ready == 1'b1) ? S_AXI4_B_STATE_IDLE : S_AXI4_B_STATE_SEND;
+        end
+      default :
+        begin
+          s_axi4_b_valid = 0;
+          m_axi4lite_b_fifo_data_out_ready = 1'b0;
+          s_axi4_aw_id_burst_fifo_data_out_ready = 1'b0;
+          s_axi4_b_state_n = S_AXI4_B_STATE_IDLE;
+        end
+      endcase
+  end
+
+  always @(posedge clk)
+  begin
+    if (~rstn)
+    begin
+      if (s_axi4_b_state == S_AXI4_B_STATE_CHECK & s_axi4_b_state_p == S_AXI4_B_STATE_IDLE)
+      begin
+        axi4_b_pkt.id <= s_axi4_aw_id_burst_fifo_data_out[0+:axi4_id_size];
+        axi4_b_pkt.burst <= s_axi4_aw_id_burst_fifo_data_out[axi4_id_size+:2];
+      end
+      if (s_axi4_b_state == S_AXI4_B_STATE_CHECK & s_axi4_b_state_p == S_AXI4_B_STATE_IDLE)
+      begin
+        axi4_b_pkt.resp <= m_axi4lite_b_fifo_data_out;
+      end
+      else if (s_axi4_b_state == S_AXI4_B_STATE_CHECK & s_axi4_b_state_p == S_AXI4_B_STATE_IDLE)
+      begin
+        axi4_b_pkt.resp <= m_axi4lite_b_fifo_data_out;
+      end
+      if (s_axi4_b_state == S_AXI4_B_STATE_CHECK & (s_axi4_b_state_p == S_AXI4_B_STATE_IDLE | s_axi4_b_state_p == S_AXI4_B_STATE_WAIT))
+      begin
+        s_axi4_b_burst_count_r <= s_axi4_b_burst_count_r + 8'b1;
+      end
+    end
+  end
+
+  always @(posedge clk)
+  begin
+    if (~rstn)
+    begin
+      s_axi4_b_state <= S_AXI4_B_STATE_IDLE;
+      s_axi4_b_state_p <= S_AXI4_B_STATE_IDLE;
+    end
+    else
+    begin
+      s_axi4_b_state   <= s_axi4_b_state_n;
+      s_axi4_b_state_p <= s_axi4_b_state;
+    end
+  end
+
+  /************************* END: Slave AXI4 B Logic ***********************/
+
+  assign s_axi4_aw_id_burst_fifo_data_in = {axi4_aw_pkt.burst, axi4_aw_pkt.id};
+
+  assign m_axi4lite_b_ready = m_axi4lite_b_fifo_data_in_ready;
+  assign m_axi4lite_b_fifo_data_in_valid = m_axi4lite_b_valid;
+  assign m_axi4lite_b_fifo_data_in       = m_axi4lite_b_resp;
+
+  assign s_axi4_b_resp = axi4_b_pkt.resp;
+  assign s_axi4_b_id = axi4_b_pkt.id;
 endmodule
