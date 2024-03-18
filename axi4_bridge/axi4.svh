@@ -1,0 +1,21 @@
+`ifndef AXI4_SIGNALS_VH
+`define AXI4_SIGNALS_VH
+
+`define AXI4_ID_BITS 5
+`define AXI4_ADDR_BITS 32
+`define AXI4_DATA_BITS 64
+`define AXI4_BURST_BITS 2
+`define AXI4_SIZE_BITS 3
+`define AXI4_LEN_BITS 8
+`define AXI4_CACHE_BITS 4
+`define AXI4_LOCK_BITS 1
+`define AXI4_PROT_BITS 3
+`define AXI4_QOS_BITS 4
+`define AXI4_REGION_BITS 4
+`define AXI4_STRB_BITS 8
+`define AXI4_RESP_BITS 2
+
+`define AXI4_RESP_SLVERR 0'b10
+`define AXI4_RESP_DECERR 0'b11
+
+`endif /* AXI4_SIGNALS_VH */
