@@ -8,7 +8,7 @@
 
 `include "axi4.svh"
 
-module axi4_bridge
+module axi4bridge
   (
   input                                 clk,
   input                                 rstn,
