@@ -260,8 +260,6 @@ module TestHarness;
     end
   end
 
-
-
   always @(posedge clk)
   begin
     if (exit == 1)
@@ -372,8 +370,7 @@ module TestHarness;
     $display("Start ...");
 
     #10000;
-    wait (axi4_b_valid);
-    //wait (x.fifo_empty);
+    wait (axi4_r_valid);
     #4 $display("Finished.");
 
     fail = 1'b1;
