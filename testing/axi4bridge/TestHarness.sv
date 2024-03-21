@@ -1,8 +1,9 @@
-`include "axi4bridge.v"
+`include "axi4.svh"
+`include "sipo.vh"
 
 module TestHarness;
 
-  reg  clk, rstn; 
+  reg  clk, rstn;
 
   wire ready_in;
   reg valid_in;
@@ -81,7 +82,7 @@ module TestHarness;
 
   axi4bridge x (
     .clk(clk),
-    .rstn(reset),
+    .rstn(rstn),
 
     .s_axi4_aw_ready(axi4_aw_ready),
     .s_axi4_aw_valid(axi4_aw_valid),
@@ -142,10 +143,39 @@ module TestHarness;
     .m_axi4lite_r_data(axi4lite_r_data)
   );
 
-  ExtMem extmem
+  /*
+  sipo adc_sipo
   (
     .clk(clk),
-    .rstn(reset),
+    .rstn(rstn),
+    .en(en),
+    .sin(sin),
+    .s_axi4lite_clk(clk),
+    .s_axi4lite_rstn(rstn),
+    .s_axi4lite_aw_ready(axi4lite_aw_ready),
+    .s_axi4lite_aw_valid(axi4lite_aw_valid),
+    .s_axi4lite_aw_addr(axi4lite_aw_addr),
+    .s_axi4lite_aw_prot(axi4lite_aw_prot),
+    .s_axi4lite_w_ready(axi4lite_w_ready),
+    .s_axi4lite_w_valid(axi4lite_w_valid),
+    .s_axi4lite_w_data(axi4lite_w_data),
+    .s_axi4lite_w_strb(axi4lite_w_strb),
+    .s_axi4lite_b_ready(axi4lite_b_ready),
+    .s_axi4lite_b_valid(axi4lite_b_valid),
+    .s_axi4lite_b_resp(axi4lite_b_resp),
+    .s_axi4lite_ar_ready(axi4lite_ar_ready),
+    .s_axi4lite_ar_valid(axi4lite_ar_valid),
+    .s_axi4lite_ar_addr(axi4lite_ar_addr),
+    .s_axi4lite_ar_prot(axi4lite_ar_prot),
+    .s_axi4lite_r_ready(axi4lite_r_ready),
+    .s_axi4lite_r_valid(axi4lite_r_valid),
+    .s_axi4lite_r_resp(axi4lite_r_resp)
+  ); */
+
+  extmem mem
+  (
+    .clk(clk),
+    .rstn(rstn),
 
     .s_axi4lite_aw_ready(axi4lite_aw_ready),
     .s_axi4lite_aw_valid(axi4lite_aw_valid),
@@ -325,10 +355,10 @@ module TestHarness;
   input                                 axi4_ar_valid_t,
   input [`AXI4_ID_BITS-1:0]             axi4_ar_id_t,
   input [`AXI4_ADDR_BITS-1:0]           axi4_ar_addr_t,
-  input [`AXI4_CACHE_BITS-1:0]          axi4_ar_cache_t,
   input [`AXI4_BURST_BITS-1:0]          axi4_ar_burst_t,
   input [`AXI4_SIZE_BITS-1:0]           axi4_ar_size_t,
   input [`AXI4_LEN_BITS-1:0]            axi4_ar_len_t,
+  input [`AXI4_CACHE_BITS-1:0]          axi4_ar_cache_t,
   input                                 axi4_ar_lock_t,
   input [`AXI4_PROT_BITS-1:0]           axi4_ar_prot_t,
   input [`AXI4_QOS_BITS-1:0]            axi4_ar_qos_t,
@@ -367,9 +397,11 @@ module TestHarness;
 
     #2 rstn = 1'b1;
     #2 go = 1'b1;
+    #2 test_done = 1'b0;
     $display("Start ...");
 
     #10000;
+    wait (axi4_r_valid);
     wait (axi4_r_valid);
     #4 $display("Finished.");
 
@@ -397,12 +429,14 @@ module TestHarness;
           //              AW_VALID,    AW_ID,       AW_ADDR, AW_BURST, AW_SIZE, AW_LEN, AW_CACHE, AW_LOCK, AW_PROT,  AW_QOS, AW_REGION, W_VALID,                  W_DATA,  W_STRB, W_LAST, B_READY
           send_axi4_write(    1'b0, 5'b00100, 32'h8000_0000,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0, 64'h0000_0000_0000_0000, 8'h0000,    1'b0,   1'b0);
           //              AR_VALID,    AR_ID,       AR_ADDR, AR_BURST, AR_SIZE, AR_LEN, AR_CACHE, AR_LOCK, AR_PROT,  AR_QOS, AR_REGION, R_READY
-          send_axi4_read(     1'b0, 5'b00100, 32'h8000_0000,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0);
+          send_axi4_read(     1'b1, 5'b00100, 32'h8000_0000,    2'b01,  3'b110,  8'h01,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0);
           state_n   = axi4_ar_ready ? RESPONSE_STATE : REQUEST_STATE;
         end	
       RESPONSE_STATE : 
         begin
-          state_n   = IDLE;
+          send_axi4_write(    1'b0, 5'b00100, 32'h8000_0000,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0, 64'h0000_0000_0000_0000, 8'h0000,    1'b0,   1'b0);
+          send_axi4_read(     1'b0, 5'b00100, 32'h8000_0000,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b1);
+          state_n   = axi4lite_r_valid ? IDLE : RESPONSE_STATE;
         end	
       default :
         begin

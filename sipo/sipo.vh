@@ -1,0 +1,8 @@
+`ifndef SIPO_BUFFER_VH
+`define SIPO_BUFFER_VH
+
+`define MMIO_BASE_ADDR 32'h6000_0000
+`define SIPO_BUFFER_DEPTH 256
+`define SIPO_BUFFER_WIDTH 64
+
+`endif /* SIPO_BUFFER_VH */

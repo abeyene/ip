@@ -10,7 +10,7 @@
 
 `define EXTMEM_ADDR_SIZE 20
 
-module  ExtMem
+module  extmem
 (
   input   logic        clk,
   input   logic        rstn,
