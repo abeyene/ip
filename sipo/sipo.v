@@ -149,8 +149,8 @@ module sipo
             4'h08: s_axi4lite_r_data[1:0] <= { fifo_full, !fifo_empty };
             endcase
         end
-        s_axi4lite_rresp <= `AXI4_RESP_OKAY;
-        s_axi4lite_rvalid <= 1'b1;
+        s_axi4lite_r_resp <= `AXI4_RESP_OKAY;
+        s_axi4lite_r_valid <= 1'b1;
         rd_req <= 1'b0;
       end
       if (s_axi4lite_aw_ready && s_axi4lite_aw_valid) 
