@@ -119,6 +119,7 @@ module TestHarness;
     .s_axi4_ar_region(axi4_ar_region),
     .s_axi4_r_ready(axi4_r_ready),
     .s_axi4_r_valid(axi4_r_valid),
+    .s_axi4_r_id(axi4_r_id),
     .s_axi4_r_resp(axi4_r_resp),
     .s_axi4_r_data(axi4_r_data),
 
@@ -194,12 +195,16 @@ module TestHarness;
     .s_axi4lite_ar_prot(axi4lite_ar_prot),
     .s_axi4lite_r_ready(axi4lite_r_ready),
     .s_axi4lite_r_valid(axi4lite_r_valid),
-    .s_axi4lite_r_resp(axi4lite_r_resp)
+    .s_axi4lite_r_resp(axi4lite_r_resp),
+    .s_axi4lite_r_data(axi4lite_r_data)
   );
 
   typedef enum logic [1:0] {IDLE, REQUEST_STATE, RESPONSE_STATE} state_t;
   state_t state, state_n, state_p;
-  logic test_done, go;
+
+  logic rw;
+
+  logic done, go;
   logic [63:0]	trace_count;
   logic [255:0] desc;
 
@@ -379,6 +384,7 @@ module TestHarness;
     axi4_ar_prot   = axi4_ar_prot_t;
     axi4_ar_qos    = axi4_ar_qos_t;
     axi4_ar_region = axi4_ar_region_t;
+    axi4_r_ready   = axi4_r_ready_t;
 
   end
   endtask
@@ -397,11 +403,11 @@ module TestHarness;
 
     #2 rstn = 1'b1;
     #2 go = 1'b1;
-    #2 test_done = 1'b0;
+    #2 done = 1'b0;
     $display("Start ...");
 
-    #10000;
-    wait (axi4_r_valid);
+    //#100;
+    wait (axi4_b_valid);
     wait (axi4_r_valid);
     #4 $display("Finished.");
 
@@ -416,27 +422,55 @@ module TestHarness;
       IDLE :
         begin 
           //              AW_VALID,    AW_ID,       AW_ADDR, AW_BURST, AW_SIZE, AW_LEN, AW_CACHE, AW_LOCK, AW_PROT,  AW_QOS, AW_REGION, W_VALID,                  W_DATA,  W_STRB, W_LAST, B_READY
-          send_axi4_write(    1'b0, 5'b00100, 32'h8000_0000,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0, 64'h0000_0000_0000_0000, 8'h0000,    1'b0,   1'b0);
+          send_axi4_write(    1'b0, 5'b00100, 32'h0000_0000,    2'b00,  3'b000,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0, 64'h0000_0000_0000_0000, 8'h0000,    1'b0,   1'b0);
           //              AR_VALID,    AR_ID,       AR_ADDR, AR_BURST, AR_SIZE, AR_LEN, AR_CACHE, AR_LOCK, AR_PROT,  AR_QOS, AR_REGION, R_READY
-          send_axi4_read(     1'b0, 5'b00100, 32'h8000_0000,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0);
-          if (go & ~test_done)
+          send_axi4_read(     1'b0, 5'b00100, 32'h0000_0000,    2'b00,  3'b000,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0);
+          if (go & ~done)
             state_n = REQUEST_STATE;
           else
             state_n = IDLE;
         end
       REQUEST_STATE : 
         begin
-          //              AW_VALID,    AW_ID,       AW_ADDR, AW_BURST, AW_SIZE, AW_LEN, AW_CACHE, AW_LOCK, AW_PROT,  AW_QOS, AW_REGION, W_VALID,                  W_DATA,  W_STRB, W_LAST, B_READY
-          send_axi4_write(    1'b0, 5'b00100, 32'h8000_0000,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0, 64'h0000_0000_0000_0000, 8'h0000,    1'b0,   1'b0);
-          //              AR_VALID,    AR_ID,       AR_ADDR, AR_BURST, AR_SIZE, AR_LEN, AR_CACHE, AR_LOCK, AR_PROT,  AR_QOS, AR_REGION, R_READY
-          send_axi4_read(     1'b1, 5'b00100, 32'h8000_0000,    2'b01,  3'b110,  8'h01,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0);
-          state_n   = axi4_ar_ready ? RESPONSE_STATE : REQUEST_STATE;
+          if (rw)
+          begin
+            //              AW_VALID,    AW_ID,       AW_ADDR, AW_BURST, AW_SIZE, AW_LEN, AW_CACHE, AW_LOCK, AW_PROT,  AW_QOS, AW_REGION, W_VALID,                  W_DATA,  W_STRB, W_LAST, B_READY
+            send_axi4_write(    1'b1, 5'b00100, 32'h0000_0008,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b1, 64'hABAB_CDCD_EFEF_ABAB,   8'hff,    1'b1,   1'b0);
+            //              AR_VALID,    AR_ID,       AR_ADDR, AR_BURST, AR_SIZE, AR_LEN, AR_CACHE, AR_LOCK, AR_PROT,  AR_QOS, AR_REGION, R_READY
+            send_axi4_read(     1'b0, 5'b00000, 32'h0000_0000,    2'b00,  3'b000,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0);
+
+            state_n   = axi4_aw_ready & axi4_w_ready ? RESPONSE_STATE : REQUEST_STATE;
+          end
+          else
+          begin
+            //              AW_VALID,    AW_ID,       AW_ADDR, AW_BURST, AW_SIZE, AW_LEN, AW_CACHE, AW_LOCK, AW_PROT,  AW_QOS, AW_REGION, W_VALID,                  W_DATA,  W_STRB, W_LAST, B_READY
+            send_axi4_write(    1'b0, 5'b00100, 32'h0000_0000,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0, 64'h0000_0000_0000_0000,   8'h00,    1'b0,   1'b0);
+            //              AR_VALID,    AR_ID,       AR_ADDR, AR_BURST, AR_SIZE, AR_LEN, AR_CACHE, AR_LOCK, AR_PROT,  AR_QOS, AR_REGION, R_READY
+            send_axi4_read(     1'b1, 5'b00100, 32'h0000_0008,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0);
+
+            state_n   = axi4_ar_ready ? RESPONSE_STATE : REQUEST_STATE;
+          end
         end	
       RESPONSE_STATE : 
         begin
-          send_axi4_write(    1'b0, 5'b00100, 32'h8000_0000,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0, 64'h0000_0000_0000_0000, 8'h0000,    1'b0,   1'b0);
-          send_axi4_read(     1'b0, 5'b00100, 32'h8000_0000,    2'b00,  3'b110,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b1);
-          state_n   = axi4lite_r_valid ? IDLE : RESPONSE_STATE;
+          if (rw)
+          begin
+            //              AW_VALID,    AW_ID,       AW_ADDR, AW_BURST, AW_SIZE, AW_LEN, AW_CACHE, AW_LOCK, AW_PROT,  AW_QOS, AW_REGION, W_VALID,                  W_DATA,  W_STRB, W_LAST, B_READY
+            send_axi4_write(    1'b0, 5'b00000, 32'h0000_0000,    2'b00,  3'b000,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0, 64'h0000_0000_0000_0000,   8'h00,    1'b0,   1'b1);
+            //              AR_VALID,    AR_ID,       AR_ADDR, AR_BURST, AR_SIZE, AR_LEN, AR_CACHE, AR_LOCK, AR_PROT,  AR_QOS, AR_REGION, R_READY
+            send_axi4_read(     1'b0, 5'b00000, 32'h0000_0000,    2'b00,  3'b000,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0);
+
+            state_n   = axi4_b_valid ? IDLE : RESPONSE_STATE;
+          end
+          else
+          begin
+            //              AW_VALID,    AW_ID,       AW_ADDR, AW_BURST, AW_SIZE, AW_LEN, AW_CACHE, AW_LOCK, AW_PROT,  AW_QOS, AW_REGION, W_VALID,                  W_DATA,  W_STRB, W_LAST, B_READY
+            send_axi4_write(    1'b0, 5'b00000, 32'h0000_0000,    2'b00,  3'b000,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b0, 64'h0000_0000_0000_0000,   8'h00,    1'b0,   1'b0);
+            //              AR_VALID,    AR_ID,       AR_ADDR, AR_BURST, AR_SIZE, AR_LEN, AR_CACHE, AR_LOCK, AR_PROT,  AR_QOS, AR_REGION, R_READY
+            send_axi4_read(     1'b0, 5'b00000, 32'h0000_0000,    2'b00,  3'b000,  8'h00,     4'h0,    1'b0,  3'b000, 4'b0000,   4'b0000,    1'b1);
+
+            state_n   = axi4_r_valid ? IDLE : RESPONSE_STATE;
+          end
         end	
       default :
         begin
@@ -451,11 +485,17 @@ module TestHarness;
     begin
       state   <= IDLE;
       state_p <= IDLE;
+      rw <= 1'b1;
+      done <= 1'b0;
     end
     else
     begin
       state   <= state_n;
       state_p <= state;
+      if (state == IDLE & state_p == RESPONSE_STATE)
+        rw <= ~rw;
+      if (state == RESPONSE_STATE & ~rw)
+        done <= 1'b1;
     end
   end
 endmodule

@@ -54,7 +54,7 @@ module axi4bridge
   output logic                          s_axi4_r_valid,
   output logic [`AXI4_ID_BITS-1:0]      s_axi4_r_id,
   output logic [`AXI4_DATA_BITS-1:0]    s_axi4_r_data,
-  output                                s_axi4_r_last,
+  output logic                          s_axi4_r_last,
   output logic [`AXI4_RESP_BITS-1:0]    s_axi4_r_resp,
   // Master AXI4 Lite Write Address Interface
   input                                 m_axi4lite_aw_ready,
@@ -96,9 +96,9 @@ module axi4bridge
   } axi4_a_pkt_t; // 67 bits
 
   typedef struct packed {
-    logic [`AXI4_DATA_BITS-1:0] data;
     logic last;
     logic [`AXI4_STRB_BITS-1:0] strb;
+    logic [`AXI4_DATA_BITS-1:0] data;
   } axi4_w_pkt_t; // 73 bits
 
   typedef struct packed {
@@ -326,7 +326,7 @@ module axi4bridge
 
   always @(posedge clk)
   begin
-    if (s_axi4_aw_state == S_AXI4_AW_STATE_CHECK & s_axi4_aw_state_p == S_AXI4_AW_STATE_IDLE)
+    if (s_axi4_aw_state == S_AXI4_AW_STATE_IDLE & s_axi4_aw_state_n == S_AXI4_AW_STATE_CHECK)
     begin
       axi4_aw_pkt.id <= s_axi4_aw_id;
       axi4_aw_pkt.addr <= s_axi4_aw_addr;
@@ -346,7 +346,7 @@ module axi4bridge
 
   always @(posedge clk)
   begin
-    if (s_axi4_aw_state == S_AXI4_AW_STATE_CHECK & s_axi4_aw_state_n == S_AXI4_AW_STATE_CONVERT)
+    if (s_axi4_aw_state == S_AXI4_AW_STATE_CHECK)
     begin
       s_axi4_aw_burst_count_r <= 3'b0;
       s_axi4_aw_addr_offset_r <= 1 << axi4_aw_pkt.size;
@@ -447,7 +447,7 @@ module axi4bridge
 
   always @(posedge clk)
   begin
-    if (s_axi4_w_state == S_AXI4_W_STATE_CONVERT & s_axi4_w_state_p == S_AXI4_W_STATE_IDLE)
+    if (s_axi4_w_state == S_AXI4_W_STATE_IDLE & s_axi4_w_state_n == S_AXI4_W_STATE_CONVERT)
     begin
       axi4_w_pkt.data <= s_axi4_w_data;
       axi4_w_pkt.strb <= s_axi4_w_strb;
@@ -457,12 +457,12 @@ module axi4bridge
 
   /************************* END: Slave AXI4 W Logic ***********************/
 
-  assign s_axi4_w_fifo_data_in = {axi4_w_pkt.data, axi4_w_pkt.last, axi4_w_pkt.strb};
+  assign s_axi4_w_fifo_data_in = {axi4_w_pkt.last, axi4_w_pkt.strb, axi4_w_pkt.data};
 
-  assign axi4_w_fifo_data_out_ready = m_axi4lite_w_ready;
-  assign m_axi4lite_w_valid = s_axi4_aw_fifo_data_out_valid;
-  assign m_axi4lite_w_data  = s_axi4_aw_fifo_data_out[0+:`AXI4_DATA_BITS];
-  assign m_axi4lite_w_strb  = s_axi4_aw_fifo_data_out[`AXI4_STRB_BITS+:`AXI4_DATA_BITS];
+  assign s_axi4_w_fifo_data_out_ready = m_axi4lite_w_ready;
+  assign m_axi4lite_w_valid = s_axi4_w_fifo_data_out_valid;
+  assign m_axi4lite_w_data  = s_axi4_w_fifo_data_out[0+:`AXI4_DATA_BITS];
+  assign m_axi4lite_w_strb  = s_axi4_w_fifo_data_out[`AXI4_DATA_BITS+:`AXI4_STRB_BITS];
 
   /************************* START: Slave AXI4 B Logic ***********************/
 
@@ -477,8 +477,6 @@ module axi4bridge
       S_AXI4_B_STATE_IDLE :
         begin
           s_axi4_b_valid = 0;
-          m_axi4lite_b_fifo_data_out_ready = 1'b1;
-          s_axi4_aw_id_len_fifo_data_out_ready = 1'b1;
           if (m_axi4lite_b_fifo_data_out_valid & s_axi4_aw_id_len_fifo_data_out_valid)
           begin
             s_axi4_b_state_n = S_AXI4_B_STATE_CHECK;
@@ -487,15 +485,11 @@ module axi4bridge
       S_AXI4_B_STATE_CHECK :
         begin
           s_axi4_b_valid = 0;
-          m_axi4lite_b_fifo_data_out_ready = 1'b0;
-          s_axi4_aw_id_len_fifo_data_out_ready = 1'b0;
           s_axi4_b_state_n = s_axi4_b_burst_count_r == axi4_b_pkt.len ? S_AXI4_B_STATE_SEND : S_AXI4_B_STATE_WAIT;
         end
       S_AXI4_B_STATE_WAIT :
         begin
           s_axi4_b_valid = 0;
-          m_axi4lite_b_fifo_data_out_ready = 1'b1;
-          s_axi4_aw_id_len_fifo_data_out_ready = 1'b0;
           if (m_axi4lite_b_fifo_data_out_valid)
           begin
             s_axi4_b_state_n = S_AXI4_B_STATE_CHECK;
@@ -504,15 +498,11 @@ module axi4bridge
       S_AXI4_B_STATE_SEND :
         begin
           s_axi4_b_valid = 1;
-          m_axi4lite_b_fifo_data_out_ready = 1'b0;
-          s_axi4_aw_id_len_fifo_data_out_ready = 1'b0;
           s_axi4_b_state_n = (s_axi4_b_ready == 1'b1) ? S_AXI4_B_STATE_IDLE : S_AXI4_B_STATE_SEND;
         end
       default :
         begin
           s_axi4_b_valid = 0;
-          m_axi4lite_b_fifo_data_out_ready = 1'b0;
-          s_axi4_aw_id_len_fifo_data_out_ready = 1'b0;
           s_axi4_b_state_n = S_AXI4_B_STATE_IDLE;
         end
     endcase
@@ -520,23 +510,27 @@ module axi4bridge
 
   always @(posedge clk)
   begin
-    if (s_axi4_b_state == S_AXI4_B_STATE_CHECK & s_axi4_b_state_p == S_AXI4_B_STATE_IDLE)
+    if (s_axi4_b_state == S_AXI4_B_STATE_IDLE & s_axi4_b_state_n == S_AXI4_B_STATE_CHECK)
     begin
-      axi4_b_pkt.id <= s_axi4_aw_id_len_fifo_data_out[0+:`AXI4_ID_BITS];
+      axi4_b_pkt.id  <= s_axi4_aw_id_len_fifo_data_out[0+:`AXI4_ID_BITS];
       axi4_b_pkt.len <= s_axi4_aw_id_len_fifo_data_out[`AXI4_ID_BITS+:`AXI4_LEN_BITS];
     end
-    if (s_axi4_b_state == S_AXI4_B_STATE_CHECK & s_axi4_b_state_p == S_AXI4_B_STATE_IDLE)
+    if (s_axi4_b_state == S_AXI4_B_STATE_IDLE & s_axi4_b_state_n == S_AXI4_B_STATE_CHECK)
     begin
       axi4_b_pkt.resp <= m_axi4lite_b_fifo_data_out;
     end
-    else if (s_axi4_b_state == S_AXI4_B_STATE_CHECK & s_axi4_b_state_p == S_AXI4_B_STATE_IDLE)
+    else if (s_axi4_b_state == S_AXI4_B_STATE_IDLE & s_axi4_b_state_n == S_AXI4_B_STATE_CHECK)
     begin
       if (axi4_b_pkt.resp == {`AXI4_RESP_BITS{1'b0}})
         axi4_b_pkt.resp <= m_axi4lite_b_fifo_data_out;
     end
-    if (s_axi4_b_state == S_AXI4_B_STATE_CHECK & (s_axi4_b_state_p == S_AXI4_B_STATE_IDLE | s_axi4_b_state_p == S_AXI4_B_STATE_WAIT))
+    if (s_axi4_b_state == S_AXI4_B_STATE_IDLE)
     begin
-      s_axi4_b_burst_count_r <= s_axi4_b_burst_count_r + 8'b1;
+      s_axi4_b_burst_count_r <= `AXI4_LEN_BITS'b0;
+    end
+    else if (s_axi4_b_state == S_AXI4_B_STATE_CHECK & s_axi4_b_state_n == S_AXI4_B_STATE_WAIT)
+    begin
+      s_axi4_b_burst_count_r <= s_axi4_b_burst_count_r + `AXI4_LEN_BITS'b1;
     end
   end
 
@@ -555,6 +549,9 @@ module axi4bridge
   end
 
   /************************* END: Slave AXI4 B Logic ***********************/
+
+  assign m_axi4lite_b_fifo_data_out_ready = (s_axi4_b_state == S_AXI4_B_STATE_IDLE & s_axi4_b_state_n == S_AXI4_B_STATE_CHECK) ? 1'b1 : 1'b0;
+  assign s_axi4_aw_id_len_fifo_data_out_ready = (s_axi4_b_state == S_AXI4_B_STATE_IDLE & s_axi4_b_state_n == S_AXI4_B_STATE_CHECK) ? 1'b1 : 1'b0;
 
   assign s_axi4_aw_id_len_fifo_data_in = {axi4_aw_pkt.len, axi4_aw_pkt.id};
 
@@ -659,7 +656,7 @@ module axi4bridge
 
   always @(posedge clk)
   begin
-    if (s_axi4_ar_state == S_AXI4_AR_STATE_CHECK & s_axi4_ar_state_p == S_AXI4_AR_STATE_IDLE)
+    if (s_axi4_ar_state == S_AXI4_AR_STATE_IDLE & s_axi4_ar_state_n == S_AXI4_AR_STATE_CHECK)
     begin
       axi4_ar_pkt.id <= s_axi4_ar_id;
       axi4_ar_pkt.addr <= s_axi4_ar_addr;
@@ -727,35 +724,38 @@ module axi4bridge
 
   reg [7:0] s_axi4_r_burst_count_r;
 
-
   always_comb
   begin
     case (s_axi4_r_state)
       S_AXI4_R_STATE_IDLE :
         begin
-          s_axi4_r_valid = 0;
+          s_axi4_r_valid = 1'b0;
+          s_axi4_r_last  = 1'b0;
           if (m_axi4lite_r_fifo_data_out_valid & s_axi4_ar_id_len_fifo_data_out_valid)
+          begin
+            s_axi4_r_state_n = S_AXI4_R_STATE_CHECK;
+          end
+        end
+      S_AXI4_R_STATE_WAIT :
+        begin
+          s_axi4_r_valid = 1'b0;
+          s_axi4_r_last  = 1'b0;
+          if (m_axi4lite_r_fifo_data_out_valid)
           begin
             s_axi4_r_state_n = S_AXI4_R_STATE_CHECK;
           end
         end
       S_AXI4_R_STATE_CHECK :
         begin
-          s_axi4_r_valid = 0;
-          s_axi4_r_state_n = s_axi4_r_burst_count_r == axi4_r_pkt.len ? S_AXI4_R_STATE_SEND : S_AXI4_R_STATE_WAIT;
-        end
-      S_AXI4_R_STATE_WAIT :
-        begin
-          s_axi4_r_valid = 0;
-          if (m_axi4lite_r_fifo_data_out_valid)
-          begin
-            s_axi4_r_state_n = S_AXI4_R_STATE_CHECK;
-          end
+          s_axi4_r_valid = 1'b0;
+          s_axi4_r_last  = 1'b0;
+          s_axi4_r_state_n = S_AXI4_R_STATE_SEND;
         end
       S_AXI4_R_STATE_SEND :
         begin
-          s_axi4_r_valid = 1;
-          s_axi4_r_state_n = (s_axi4_r_ready == 1'b1) ? S_AXI4_R_STATE_IDLE : S_AXI4_R_STATE_SEND;
+          s_axi4_r_valid = 1'b1;
+          s_axi4_r_last  = s_axi4_r_burst_count_r == axi4_r_pkt.len;
+          s_axi4_r_state_n = (s_axi4_r_ready == 1'b1) ?( s_axi4_r_burst_count_r == axi4_r_pkt.len ? S_AXI4_R_STATE_IDLE : S_AXI4_R_STATE_WAIT) : S_AXI4_R_STATE_SEND;
         end
       default :
         begin
@@ -774,12 +774,12 @@ module axi4bridge
     end
     if (s_axi4_r_state == S_AXI4_R_STATE_IDLE & s_axi4_r_state_n == S_AXI4_R_STATE_CHECK)
     begin
-      axi4_r_pkt.resp <= s_axi4_ar_id_len_fifo_data_out[0+:`AXI4_RESP_BITS];
-      axi4_r_pkt.data <= s_axi4_ar_id_len_fifo_data_out[`AXI4_RESP_BITS+:`AXI4_DATA_BITS];
+      axi4_r_pkt.resp <= m_axi4lite_r_fifo_data_out[0+:`AXI4_RESP_BITS];
+      axi4_r_pkt.data <= m_axi4lite_r_fifo_data_out[`AXI4_RESP_BITS+:`AXI4_DATA_BITS];
     end
     if (s_axi4_r_state == S_AXI4_R_STATE_IDLE)
       s_axi4_r_burst_count_r <= 8'h00;
-    else if (s_axi4_r_state == S_AXI4_R_STATE_CHECK && s_axi4_r_state_n == S_AXI4_R_STATE_WAIT)
+    else if (s_axi4_r_state == S_AXI4_R_STATE_SEND && s_axi4_r_state_n == S_AXI4_R_STATE_WAIT)
     begin
       s_axi4_r_burst_count_r <= s_axi4_r_burst_count_r + 8'h01;
     end

@@ -179,6 +179,7 @@ module  extmem
         s_axi4lite_ar_ready   = 1'b1;
         s_axi4lite_r_valid    = 1'b0;
         s_axi4lite_r_resp     = 2'b00;
+        s_axi4lite_r_data     = `AXI4_DATA_BITS'b0;
         if (r_req)
         begin
           r_state_n      = READ_RESP;
@@ -195,6 +196,7 @@ module  extmem
         s_axi4lite_ar_ready   = 1'b0;
         s_axi4lite_r_valid    = 1'b1;
         s_axi4lite_r_resp     = 2'b00;
+        s_axi4lite_r_data     = read_data;
         r_state_n             = READ_REQ;
       end
     endcase
