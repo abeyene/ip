@@ -261,24 +261,7 @@ module axi4bridge
           s_axi4_aw_ready = 1'b0;
           s_axi4_aw_fifo_data_in_valid = 1'b0;
           s_axi4_aw_id_len_fifo_data_in_valid = 1'b0;
-        case (axi4_aw_pkt.len)
-          2'b00 : 
-            begin
-              s_axi4_aw_state_n = S_AXI4_AW_STATE_STORE;
-            end
-          2'b01 : 
-            begin
-              s_axi4_aw_state_n = S_AXI4_AW_STATE_CONVERT;
-            end
-          2'b10 : 
-            begin
-              s_axi4_aw_state_n = S_AXI4_AW_STATE_CONVERT;
-            end
-          default : 
-            begin
-              s_axi4_aw_state_n = S_AXI4_AW_STATE_IDLE;
-            end
-          endcase
+          s_axi4_aw_state_n = S_AXI4_AW_STATE_STORE;
         end
       S_AXI4_AW_STATE_CONVERT :
         begin
@@ -354,23 +337,18 @@ module axi4bridge
     end
     if (s_axi4_aw_state == S_AXI4_AW_STATE_CONVERT && s_axi4_aw_state_n == S_AXI4_AW_STATE_STORE)
     begin
-      if (s_axi4_aw_burst_count_r != 3'b0)
-      begin
-        case (axi4_aw_pkt.burst)
-          2'b01 : axi4_aw_pkt.addr <= s_axi4_aw_aligned_addr_r + s_axi4_aw_addr_offset_r;
-          2'b10 : 
-            begin
-                if (axi4_aw_pkt.addr < s_axi4_aw_wrap_boundary_r)
-                  axi4_aw_pkt.addr <= s_axi4_aw_aligned_addr_r + s_axi4_aw_addr_offset_r;
-                else if (axi4_aw_pkt.addr == s_axi4_aw_wrap_boundary_r + (s_axi4_aw_len << (1 << s_axi4_aw_size)))
-                  axi4_aw_pkt.addr <= s_axi4_aw_wrap_boundary_r;
-                else
-                  axi4_aw_pkt.addr <= s_axi4_aw_other_addr_r - (s_axi4_aw_len << (1 << s_axi4_aw_size));
-            end
-          default : 
-                  axi4_aw_pkt.addr <= {`AXI4_ADDR_BITS{1'b0}};
-        endcase
-      end
+      case (axi4_aw_pkt.burst)
+        2'b01 : axi4_aw_pkt.addr <= s_axi4_aw_aligned_addr_r + s_axi4_aw_addr_offset_r;
+        2'b10 : 
+          begin
+            if (axi4_aw_pkt.addr < s_axi4_aw_wrap_boundary_r)
+              axi4_aw_pkt.addr <= s_axi4_aw_aligned_addr_r + s_axi4_aw_addr_offset_r;
+            else if (axi4_aw_pkt.addr == s_axi4_aw_wrap_boundary_r + (s_axi4_aw_len << (1 << s_axi4_aw_size)))
+              axi4_aw_pkt.addr <= s_axi4_aw_wrap_boundary_r;
+            else
+              axi4_aw_pkt.addr <= s_axi4_aw_other_addr_r - (s_axi4_aw_len << (1 << s_axi4_aw_size));
+          end
+      endcase
       s_axi4_aw_burst_count_r <= s_axi4_aw_burst_count_r + 8'b1; 
       s_axi4_aw_addr_offset_r <= s_axi4_aw_addr_offset_r + (1 << axi4_aw_pkt.size);
       s_axi4_aw_other_addr_r <= s_axi4_aw_other_addr_r + (1 << axi4_aw_pkt.size);
@@ -591,24 +569,7 @@ module axi4bridge
           s_axi4_ar_ready = 1'b0;
           s_axi4_ar_fifo_data_in_valid = 1'b0;
           s_axi4_ar_id_len_fifo_data_in_valid = 1'b0;
-        case (axi4_ar_pkt.burst)
-          2'b00 : 
-            begin
-              s_axi4_ar_state_n = S_AXI4_AR_STATE_STORE;
-            end
-          2'b01 : 
-            begin
-              s_axi4_ar_state_n = S_AXI4_AR_STATE_CONVERT;
-            end
-          2'b10 : 
-            begin
-              s_axi4_ar_state_n = S_AXI4_AR_STATE_CONVERT;
-            end
-          default : 
-            begin
-              s_axi4_ar_state_n = S_AXI4_AR_STATE_IDLE;
-            end
-          endcase
+          s_axi4_ar_state_n = S_AXI4_AR_STATE_STORE;
         end
       S_AXI4_AR_STATE_CONVERT :
         begin
@@ -682,25 +643,20 @@ module axi4bridge
       s_axi4_ar_addr_offset_r <= 1 << axi4_ar_pkt.size;
       s_axi4_ar_other_addr_r  <= axi4_ar_pkt.addr;
     end
-    if (s_axi4_ar_state == S_AXI4_AR_STATE_CONVERT && s_axi4_ar_state_n == S_AXI4_AR_STATE_STORE)
+    if (s_axi4_ar_state == S_AXI4_AR_STATE_STORE && s_axi4_ar_state_n == S_AXI4_AR_STATE_CONVERT)
     begin
-      if (s_axi4_ar_burst_count_r != 8'h00)
-      begin
-        case (axi4_ar_pkt.burst)
-          2'b01 : axi4_ar_pkt.addr <= s_axi4_ar_aligned_addr_r + s_axi4_ar_addr_offset_r;
-          2'b10 : 
-            begin
-                if (axi4_ar_pkt.addr < s_axi4_ar_wrap_boundary_r)
-                  axi4_ar_pkt.addr <= s_axi4_ar_aligned_addr_r + s_axi4_ar_addr_offset_r;
-                else if (axi4_ar_pkt.addr == s_axi4_ar_wrap_boundary_r + (s_axi4_ar_len << (1 << s_axi4_ar_size)))
-                  axi4_ar_pkt.addr <= s_axi4_ar_wrap_boundary_r;
-                else
-                  axi4_ar_pkt.addr <= s_axi4_ar_other_addr_r - (s_axi4_ar_len << (1 << s_axi4_ar_size));
-            end
-          default : 
-                  axi4_ar_pkt.addr <= {`AXI4_ADDR_BITS{1'b0}};
-        endcase
-      end
+      case (axi4_ar_pkt.burst)
+        2'b01 : axi4_ar_pkt.addr <= s_axi4_ar_aligned_addr_r + s_axi4_ar_addr_offset_r;
+        2'b10 : 
+          begin
+            if (axi4_ar_pkt.addr < s_axi4_ar_wrap_boundary_r)
+              axi4_ar_pkt.addr <= s_axi4_ar_aligned_addr_r + s_axi4_ar_addr_offset_r;
+            else if (axi4_ar_pkt.addr == s_axi4_ar_wrap_boundary_r + (s_axi4_ar_len << (1 << s_axi4_ar_size)))
+              axi4_ar_pkt.addr <= s_axi4_ar_wrap_boundary_r;
+            else
+              axi4_ar_pkt.addr <= s_axi4_ar_other_addr_r - (s_axi4_ar_len << (1 << s_axi4_ar_size));
+          end
+      endcase
       s_axi4_ar_burst_count_r <= s_axi4_ar_burst_count_r + 8'h01; 
       s_axi4_ar_addr_offset_r <= s_axi4_ar_addr_offset_r + (1 << axi4_ar_pkt.size);
       s_axi4_ar_other_addr_r <= s_axi4_ar_other_addr_r + (1 << axi4_ar_pkt.size);
@@ -801,7 +757,7 @@ module axi4bridge
 
   /************************* END: Slave AXI4 R Logic ***********************/
 
-  assign m_axi4lite_r_fifo_data_out_ready = (s_axi4_r_state == S_AXI4_R_STATE_IDLE & s_axi4_r_state_n == S_AXI4_R_STATE_CHECK) ? 1'b1 : 1'b0;
+  assign m_axi4lite_r_fifo_data_out_ready = ((s_axi4_r_state == S_AXI4_R_STATE_IDLE || s_axi4_r_state == S_AXI4_R_STATE_WAIT) & s_axi4_r_state_n == S_AXI4_R_STATE_CHECK) ? 1'b1 : 1'b0;
   assign s_axi4_ar_id_len_fifo_data_out_ready = (s_axi4_r_state == S_AXI4_R_STATE_IDLE & s_axi4_r_state_n == S_AXI4_R_STATE_CHECK) ? 1'b1 : 1'b0;
 
   assign s_axi4_ar_id_len_fifo_data_in = {axi4_ar_pkt.len, axi4_ar_pkt.id};

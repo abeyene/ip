@@ -44,8 +44,8 @@ module  extmem
   localparam read_cmd_lp  = 3'b0;
   localparam write_cmd_lp = 3'b1;
 
-  typedef enum logic [1:0] {WRITE_REQ, WRITE_RESP} wr_state_t;
-  typedef enum logic [1:0] {READ_REQ, READ_RESP} r_state_t;
+  typedef enum logic [2:0] {WRITE_IDLE, WRITE_REQ, WRITE_RESP} wr_state_t;
+  typedef enum logic [2:0] {READ_IDLE, READ_REQ, READ_RESP} r_state_t;
 
   wr_state_t wr_state, wr_state_n;
   r_state_t r_state, r_state_n;
@@ -77,7 +77,7 @@ module  extmem
     else
     begin
       case (wr_state)
-        WRITE_REQ :
+        WRITE_IDLE :
         begin
           if (aw_fire)
           begin
@@ -100,7 +100,7 @@ module  extmem
     else
     begin
       case (wr_state)
-        WRITE_REQ :
+        WRITE_IDLE :
         begin
           if (w_fire)
           begin
@@ -124,11 +124,11 @@ module  extmem
     else
     begin
       case (r_state)
-        READ_REQ :
+        READ_IDLE :
         begin
           if (ar_fire)
           begin
-            r_req[0] <= r_req[0] | 1'b1;
+            r_req <= 1'b1;
             read_addr <= s_axi4lite_ar_addr;
           end
         end
@@ -143,22 +143,23 @@ module  extmem
   always @(*)
   begin
     case (wr_state)
-      WRITE_REQ :
+      WRITE_IDLE :
       begin
         s_axi4lite_aw_ready   = 1'b1;
         s_axi4lite_w_ready    = 1'b1;
         s_axi4lite_b_valid    = 1'b0;
         s_axi4lite_b_resp     = 2'b00;
-        if (&wr_req)
-        begin
-          wr_state_n       = WRITE_RESP;
-          write_en         = 1'b1;
-        end
-        else
-        begin
-          wr_state_n       = WRITE_REQ;
-          write_en         = 1'b0;
-        end
+        write_en              = 1'b0;
+        wr_state_n            = &wr_req ? WRITE_REQ : WRITE_IDLE;
+      end
+      WRITE_REQ :
+      begin
+        s_axi4lite_aw_ready   = 1'b0;
+        s_axi4lite_w_ready    = 1'b0;
+        s_axi4lite_b_valid    = 1'b0;
+        s_axi4lite_b_resp     = 2'b00;
+        write_en              = 1'b1;
+        wr_state_n            = WRITE_RESP;
       end
       WRITE_RESP :
       begin
@@ -166,7 +167,17 @@ module  extmem
         s_axi4lite_w_ready    = 1'b0;
         s_axi4lite_b_valid    = 1'b1;
         s_axi4lite_b_resp     = 2'b00;
-        wr_state_n            = WRITE_REQ;
+        write_en              = 1'b0;
+        wr_state_n            = WRITE_IDLE;
+      end
+      default :
+      begin
+        s_axi4lite_aw_ready   = 1'b0;
+        s_axi4lite_w_ready    = 1'b0;
+        s_axi4lite_b_valid    = 1'b0;
+        s_axi4lite_b_resp     = 2'b00;
+        write_en              = 1'b0;
+        wr_state_n            = WRITE_IDLE;
       end
     endcase
   end
@@ -174,22 +185,23 @@ module  extmem
   always @(*)
   begin
     case (r_state)
+      READ_IDLE :
+      begin
+          s_axi4lite_ar_ready   = 1'b1;
+          s_axi4lite_r_valid    = 1'b0;
+          s_axi4lite_r_resp     = 2'b00;
+          s_axi4lite_r_data     = `AXI4_DATA_BITS'b0;
+          read_en               = 1'b0;
+          r_state_n             = s_axi4lite_ar_valid ? READ_REQ : READ_IDLE;
+      end
       READ_REQ :
       begin
-        s_axi4lite_ar_ready   = 1'b1;
+        s_axi4lite_ar_ready   = 1'b0;
         s_axi4lite_r_valid    = 1'b0;
         s_axi4lite_r_resp     = 2'b00;
         s_axi4lite_r_data     = `AXI4_DATA_BITS'b0;
-        if (r_req)
-        begin
-          r_state_n      = READ_RESP;
-          read_en        = 1'b1;
-        end
-        else
-        begin
-          r_state_n      = READ_REQ;
-          read_en        = 1'b0;
-        end
+        read_en               = 1'b1;
+        r_state_n             = READ_RESP;
       end
       READ_RESP :
       begin
@@ -197,7 +209,15 @@ module  extmem
         s_axi4lite_r_valid    = 1'b1;
         s_axi4lite_r_resp     = 2'b00;
         s_axi4lite_r_data     = read_data;
-        r_state_n             = READ_REQ;
+        r_state_n             = READ_IDLE;
+      end
+      default :
+      begin
+        s_axi4lite_ar_ready   = 1'b0;
+        s_axi4lite_r_valid    = 1'b0;
+        s_axi4lite_r_resp     = 2'b00;
+        s_axi4lite_r_data     = `AXI4_DATA_BITS'b0;
+        r_state_n             = READ_IDLE;
       end
     endcase
   end
@@ -205,7 +225,7 @@ module  extmem
   always @(posedge clk)
   begin
     if (~rstn)
-      wr_state <= WRITE_REQ;
+      wr_state <= WRITE_IDLE;
     else
       wr_state <= wr_state_n;
   end
@@ -213,11 +233,11 @@ module  extmem
   always @(posedge clk)
   begin
     if (~rstn)
-      r_state <= READ_REQ;
+      r_state <= READ_IDLE;
     else
       r_state <= r_state_n;
   end
-    
+
   SynchronousSRAM_1rw #(.p_data_nbits(64), .p_num_entries(2**`EXTMEM_ADDR_SIZE))
     sram (  
           .clk(clk),
