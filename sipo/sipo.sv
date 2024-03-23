@@ -7,7 +7,7 @@
 // 
 
 `include "axi4.svh"
-`include "sipo.vh"
+`include "sipo.svh"
 
 module sipo
   (
