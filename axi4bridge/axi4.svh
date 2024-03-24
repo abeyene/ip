@@ -1,7 +1,7 @@
 `ifndef AXI4_SIGNALS_VH
 `define AXI4_SIGNALS_VH
 
-`define AXI4_ID_BITS 5
+`define AXI4_ID_BITS 4
 `define AXI4_ADDR_BITS 32
 `define AXI4_DATA_BITS 64
 `define AXI4_BURST_BITS 2
@@ -15,7 +15,9 @@
 `define AXI4_STRB_BITS 8
 `define AXI4_RESP_BITS 2
 
-`define AXI4_RESP_SLVERR 0'b10
-`define AXI4_RESP_DECERR 0'b11
+`define AXI4_RESP_OKAY   2'b00
+`define AXI4_RESP_EXOKAY 2'b01
+`define AXI4_RESP_SLVERR 2'b10
+`define AXI4_RESP_DECERR 2'b11
 
 `endif /* AXI4_SIGNALS_VH */
