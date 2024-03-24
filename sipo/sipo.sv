@@ -66,8 +66,11 @@ module sipo
   assign inp_pos_nxt = inp_pos + 1;
   assign out_pos_nxt = out_pos + 1;
 
-  wire fifo_full = inp_pos_nxt == sync_out_pos;
-  wire fifo_empty = sync_inp_pos == out_pos;
+  wire fifo_full;
+  wire fifo_empty;
+
+  assign fifo_full = inp_pos_nxt == sync_out_pos;
+  assign fifo_empty = sync_inp_pos == out_pos;
 
   reg [$clog2(`SIPO_WIDTH)-1:0] counter;
 
