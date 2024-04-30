@@ -123,7 +123,7 @@ module sipo
     begin
       if (sync_en & ~fifo_full)
       begin
-        data_in <= {sin, data_in[`SIPO_WIDTH-2:0]};
+        data_in <= {sin, data_in[`SIPO_WIDTH-1:1]};
         counter <= counter + $clog2(`SIPO_WIDTH)'(1);
         if (&counter)
           inp_pos <= inp_pos + $clog2(`SIPO_DEPTH)'(1);
