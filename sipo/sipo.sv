@@ -55,10 +55,8 @@ module sipo
 
   reg [$clog2(`SIPO_DEPTH)-1:0] inp_pos_sync_regs_stage_1;
   reg [$clog2(`SIPO_DEPTH)-1:0] inp_pos_sync_regs_stage_2;
-  reg [$clog2(`SIPO_DEPTH)-1:0] inp_pos_sync_regs_stage_3;
   reg [$clog2(`SIPO_DEPTH)-1:0] out_pos_sync_regs_stage_1;
   reg [$clog2(`SIPO_DEPTH)-1:0] out_pos_sync_regs_stage_2;
-  reg [$clog2(`SIPO_DEPTH)-1:0] out_pos_sync_regs_stage_3;
 
   reg  [`SIPO_WIDTH-1:0] data_in;
   wire [`SIPO_WIDTH-1:0] data_out;
@@ -90,16 +88,14 @@ module sipo
   begin
     out_pos_sync_regs_stage_1 <= out_pos;    // shift left
     out_pos_sync_regs_stage_2 <= out_pos_sync_regs_stage_1;
-    out_pos_sync_regs_stage_3 <= out_pos_sync_regs_stage_2;
-    sync_out_pos <= out_pos_sync_regs_stage_3;
+    sync_out_pos <= out_pos_sync_regs_stage_2;
   end
 
   always @(posedge s_axi4lite_clk) 
   begin
     inp_pos_sync_regs_stage_1 <= inp_pos;    // shift left
     inp_pos_sync_regs_stage_2 <= inp_pos_sync_regs_stage_1;
-    inp_pos_sync_regs_stage_3 <= inp_pos_sync_regs_stage_2;
-    sync_inp_pos <= inp_pos_sync_regs_stage_3;
+    sync_inp_pos <= inp_pos_sync_regs_stage_2;
   end
 
   mem_1r1w mem(
