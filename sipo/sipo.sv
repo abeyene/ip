@@ -48,8 +48,8 @@ module sipo
   reg [`SYNC_STAGES-1:0] rstn_sync_regs;
 
   
-  reg [$clog2(`SIPO_DEPTH)-1:0]  inp_pos, sync_inp_pos;
-  wire [$clog2(`SIPO_DEPTH)-1:0] inp_pos_nxt;
+  reg [$clog2(`SIPO_DEPTH)-1:0]  inp_pos, sync_inp_pos, inp_pos_dly;
+  wire [$clog2(`SIPO_DEPTH)-1:0] inp_pos_nxt, sync_inp_pos_nxt;
   reg [$clog2(`SIPO_DEPTH)-1:0]  out_pos, sync_out_pos;
   wire [$clog2(`SIPO_DEPTH)-1:0] out_pos_nxt;
 
@@ -64,19 +64,22 @@ module sipo
   wire [`SIPO_WIDTH-1:0] data_out;
 
   assign inp_pos_nxt = inp_pos + 1;
+  assign sync_inp_pos_nxt = sync_inp_pos + 1;
   assign out_pos_nxt = out_pos + 1;
 
-  wire fifo_full;
+  wire fifo_full, sync_fifo_full;
   wire fifo_empty;
 
   assign fifo_full = inp_pos_nxt == sync_out_pos;
+  assign sync_fifo_full = sync_inp_pos_nxt == out_pos;
   assign fifo_empty = sync_inp_pos == out_pos;
 
   reg [$clog2(`SIPO_WIDTH)-1:0] counter;
 
-  assign async_rstn = s_axi4lite_rstn | user_rstn;
+  assign async_rstn = s_axi4lite_rstn & user_rstn;
 
-  always @(posedge clk) begin
+  always @(posedge clk)
+  begin
     en_sync_regs <= {en_sync_regs[`SYNC_STAGES-2:0], async_en};    // shift left
     sync_en <= en_sync_regs[`SYNC_STAGES-1];
     rstn_sync_regs <= {rstn_sync_regs[`SYNC_STAGES-2:0], async_rstn};    // shift left
@@ -100,10 +103,10 @@ module sipo
   end
 
   mem_1r1w mem(
-    .W0_addr(inp_pos),
+    .W0_addr(inp_pos_dly),
     .W0_clk(clk),
     .W0_data(data_in),
-    .W0_en(sync_rstn & sync_en & ~fifo_full),
+    .W0_en(sync_rstn & sync_en & ~fifo_full & (~(|counter))),
     .W0_mask(1'b1),
     .R0_addr(out_pos),
     .R0_clk(s_axi4lite_clk),
@@ -115,19 +118,21 @@ module sipo
   begin
     if (~sync_rstn)
     begin
-      inp_pos <= {$clog2(`SIPO_DEPTH){1'b0}};
-      counter <= {$clog2(`SIPO_WIDTH){1'b0}};
-      data_in <= {`SIPO_WIDTH{1'b0}};
+      inp_pos     <= {$clog2(`SIPO_DEPTH){1'b0}};
+      inp_pos_dly <= {$clog2(`SIPO_DEPTH){1'b0}};
+      counter     <= {$clog2(`SIPO_WIDTH){1'b0}};
+      data_in     <= {`SIPO_WIDTH{1'b0}};
     end
     else
     begin
       if (sync_en & ~fifo_full)
       begin
-        data_in <= {sin, data_in[`SIPO_WIDTH-1:1]};
+        data_in <= {data_in[`SIPO_WIDTH-1:1], sin};
         counter <= counter + $clog2(`SIPO_WIDTH)'(1);
         if (&counter)
           inp_pos <= inp_pos + $clog2(`SIPO_DEPTH)'(1);
       end
+      inp_pos_dly <= inp_pos;
     end
   end
  
@@ -140,11 +145,6 @@ module sipo
   assign s_axi4lite_ar_ready = !rd_req && !s_axi4lite_r_valid;
   assign s_axi4lite_aw_ready = !wr_req[0] && !s_axi4lite_b_valid;
   assign s_axi4lite_w_ready  = !wr_req[1] && !s_axi4lite_b_valid;
-
-  wire [`AXI4_ADDR_BITS-1:0] read_addr_base;
-  assign read_addr_base = read_addr & ~{`AXI4_ADDR_BITS'hf};
-  wire [`AXI4_ADDR_BITS-1:0] write_addr_base;
-  assign write_addr_base = write_addr & ~{`AXI4_ADDR_BITS'hf};
 
   always @(posedge s_axi4lite_clk)
   begin
@@ -177,15 +177,28 @@ module sipo
       end 
       else if (!s_axi4lite_r_valid && rd_req) 
       begin
-        s_axi4lite_r_data <= `AXI4_DATA_BITS'b0;
-        if (read_addr_base == `MMIO_BASE_ADDR) 
-        begin
-            case (read_addr[3:0])
-            4'h00: if (!fifo_empty) begin s_axi4lite_r_data <= data_out; out_pos <= out_pos_nxt; end
-            4'h08: s_axi4lite_r_data[3:0] <= {~user_rstn, async_en, fifo_full, !fifo_empty };
-            endcase
+        case (read_addr[7:0])
+        8'h00: begin
+          if (!fifo_empty) 
+          begin
+            s_axi4lite_r_data <= data_out; 
+            out_pos <= out_pos_nxt; 
+          end
+          else
+          begin
+            s_axi4lite_r_data <= `AXI4_DATA_BITS'b0;
+          end
+            s_axi4lite_r_resp <= `AXI4_RESP_OKAY; 
         end
-        s_axi4lite_r_resp <= `AXI4_RESP_OKAY;
+        8'h08: begin
+          s_axi4lite_r_data <= `AXI4_DATA_BITS'({user_rstn, async_en, sync_fifo_full, fifo_empty});
+          s_axi4lite_r_resp <= `AXI4_RESP_OKAY; 
+        end
+        default: begin
+          s_axi4lite_r_data <= `AXI4_DATA_BITS'b0;
+          s_axi4lite_r_resp <= `AXI4_RESP_SLVERR; 
+        end
+        endcase
         s_axi4lite_r_valid <= 1'b1;
         rd_req <= 1'b0;
       end
@@ -205,21 +218,16 @@ module sipo
       end 
       else if (!s_axi4lite_b_valid && wr_req == 2'b11) 
       begin
-        if (write_addr_base == `MMIO_BASE_ADDR) 
-        begin
-          case (write_addr[3:0])
-          4'h04:
-            begin
-              out_pos <= write_data[$clog2(`SIPO_DEPTH)-1:0];
-            end
-          4'h0c:
-            begin
-              async_en <= write_data[0]; 
-              user_rstn <= write_data[1]; 
-            end
-          endcase
+        case (write_addr[7:0])
+        8'h10: begin
+          async_en <= write_data[0]; 
+          user_rstn <= write_data[1]; 
+          s_axi4lite_b_resp <= `AXI4_RESP_OKAY; 
         end
-        s_axi4lite_b_resp <= `AXI4_RESP_OKAY;
+        default: begin
+          s_axi4lite_b_resp <= `AXI4_RESP_SLVERR; 
+        end
+        endcase
         s_axi4lite_b_valid <= 1'b1;
         wr_req <= 2'b0;
       end
