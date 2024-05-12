@@ -508,11 +508,6 @@ module axi4bridge
     begin
       axi4_b_pkt.resp <= m_axi4lite_b_fifo_data_out;
     end
-    else if (s_axi4_b_state == S_AXI4_B_STATE_IDLE & s_axi4_b_state_n == S_AXI4_B_STATE_CHECK)
-    begin
-      if (axi4_b_pkt.resp == {`AXI4_RESP_BITS{1'b0}})
-        axi4_b_pkt.resp <= m_axi4lite_b_fifo_data_out;
-    end
     if (s_axi4_b_state == S_AXI4_B_STATE_IDLE)
     begin
       s_axi4_b_burst_count_r <= `AXI4_LEN_BITS'b0;
