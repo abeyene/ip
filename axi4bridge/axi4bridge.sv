@@ -335,9 +335,9 @@ module axi4bridge
     else if (s_axi4_aw_state == S_AXI4_AW_STATE_CONVERT & s_axi4_aw_state_n == S_AXI4_AW_STATE_STORE)
     begin
       case (axi4_aw_pkt.burst)
-        `AXI4_BURST_BITS'h1 : 
+        `AXI4_BURST_BITS'b01 : 
           axi4_aw_pkt.addr <= s_axi4_aw_aligned_addr_r + s_axi4_aw_addr_offset_r;
-        `AXI4_BURST_BITS'h2 : 
+        `AXI4_BURST_BITS'b10 : 
           begin
             if (axi4_aw_pkt.addr < s_axi4_aw_wrap_boundary_r)
               axi4_aw_pkt.addr <= s_axi4_aw_aligned_addr_r + s_axi4_aw_addr_offset_r;
@@ -647,9 +647,9 @@ module axi4bridge
     else if (s_axi4_ar_state == S_AXI4_AR_STATE_STORE && s_axi4_ar_state_n == S_AXI4_AR_STATE_CONVERT)
     begin
       case (axi4_ar_pkt.burst)
-        `AXI4_BURST_BITS'h1 : 
+        `AXI4_BURST_BITS'b01 : 
           axi4_ar_pkt.addr <= s_axi4_ar_aligned_addr_r + s_axi4_ar_addr_offset_r;
-        `AXI4_BURST_BITS'h2 : 
+        `AXI4_BURST_BITS'b10 : 
           begin
             if (axi4_ar_pkt.addr < s_axi4_ar_wrap_boundary_r)
               axi4_ar_pkt.addr <= s_axi4_ar_aligned_addr_r + s_axi4_ar_addr_offset_r;
