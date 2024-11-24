@@ -192,4 +192,4 @@ assign txdv = (bitcnt == pktsz -1 && rw == 1) ? 1'b1 : 1'b0;
 
 assign rw_out = rw;
 
-endmodule : spi_slave
+endmodule : spi_client
