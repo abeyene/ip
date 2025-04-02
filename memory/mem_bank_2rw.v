@@ -4,18 +4,18 @@ module mem_bank_2rw #(
 )(
 
     // Port 1 Interface
-    input  logic                  RW0_clk,         // Clock signal
-    input  logic                  RW0_wmode,       // Write enable for Port 1
-    input  logic [$clog2(REG_DEPTH)-1:0] RW0_addr, // Address for Port 1
-    input  logic [REG_WIDTH-1:0]   RW0_wdata,      // Write data for Port 1
-    output logic [REG_WIDTH-1:0]   RW0_rdata,      // Read data from Port 1
+    input                    RW0_clk,         // Clock signal
+    input                    RW0_wmode,       // Write enable for Port 1
+    input  [$clog2(REG_DEPTH)-1:0] RW0_addr, // Address for Port 1
+    input  [REG_WIDTH-1:0]   RW0_wdata,      // Write data for Port 1
+    output [REG_WIDTH-1:0]   RW0_rdata,      // Read data from Port 1
 
     // Port 2 Interface
-    input  logic                  RW1_clk,         // Clock signal
-    input  logic                  RW1_wmode,       // Write enable for Port 2
-    input  logic [$clog2(REG_DEPTH)-1:0] RW1_addr, // Address for Port 2
-    input  logic [REG_WIDTH-1:0]   RW1_wdata,      // Write data for Port 2
-    output logic [REG_WIDTH-1:0]   RW1_rdata       // Read data from Port 2
+    input                     RW1_clk,         // Clock signal
+    input                     RW1_wmode,       // Write enable for Port 2
+    input   [$clog2(REG_DEPTH)-1:0] RW1_addr, // Address for Port 2
+    input   [REG_WIDTH-1:0]   RW1_wdata,      // Write data for Port 2
+    output  [REG_WIDTH-1:0]   RW1_rdata       // Read data from Port 2
 );
 
   // Register memory array
