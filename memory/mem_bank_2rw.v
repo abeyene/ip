@@ -1,25 +1,25 @@
-module mem_bank_2rw #(
-    parameter int REG_DEPTH = 4,  // Number of registers
-    parameter int REG_WIDTH = 64  // Width of each register
-)(
+module mem_bank_2rw
+(
 
     // Port 1 Interface
-    input                    RW0_clk,         // Clock signal
-    input                    RW0_wmode,       // Write enable for Port 1
-    input  [$clog2(REG_DEPTH)-1:0] RW0_addr, // Address for Port 1
-    input  [REG_WIDTH-1:0]   RW0_wdata,      // Write data for Port 1
-    output [REG_WIDTH-1:0]   RW0_rdata,      // Read data from Port 1
+    input                           RW0_clk,      // Clock signal
+    input                           RW0_en,       // Enable signal
+    input                           RW0_wmode,    // Write enable for Port 1
+    input  [1:0]                    RW0_addr,     // Address for Port 1
+    input  [63:0]                   RW0_wdata,    // Write data for Port 1
+    output [63:0]                   RW0_rdata,    // Read data from Port 1
 
     // Port 2 Interface
-    input                     RW1_clk,         // Clock signal
-    input                     RW1_wmode,       // Write enable for Port 2
-    input   [$clog2(REG_DEPTH)-1:0] RW1_addr, // Address for Port 2
-    input   [REG_WIDTH-1:0]   RW1_wdata,      // Write data for Port 2
-    output  [REG_WIDTH-1:0]   RW1_rdata       // Read data from Port 2
+    input                           RW1_clk,      // Clock signal
+    input                           RW1_en,       // Enable signal
+    input                           RW1_wmode,    // Write enable for Port 2
+    input   [1:0]                   RW1_addr,     // Address for Port 2
+    input   [63:0]                  RW1_wdata,    // Write data for Port 2
+    output  [63:0]                  RW1_rdata     // Read data from Port 2
 );
 
   // Register memory array
-  logic [REG_WIDTH-1:0] reg_file [0:REG_DEPTH-1];
+  logic [63:0] reg_file [0:3];
 
   // Synchronous Write Logic
   always_ff @(posedge RW0_clk || RW1_clk)
